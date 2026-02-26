@@ -15,10 +15,12 @@ import { MoreOptionsMenu, MenuItem } from '@/components/common/MoreOptionsMenu';
 import { ConfirmationDialog } from '@/components/common/ConfirmationDialog';
 import { useNavigate } from 'react-router-dom';
 import type { CaseInformationProps } from './types';
+import { useToast } from '@/contexts/ToastContext';
 
 export function CaseInformation({ caseId, caseData }: CaseInformationProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const navigate = useNavigate();
+  const { addToast } = useToast();
 
   const utils = trpc.useUtils();
   const updateCase = trpc.case.update.useMutation({
@@ -57,10 +59,20 @@ export function CaseInformation({ caseId, caseData }: CaseInformationProps) {
   const deleteCase = trpc.case.delete.useMutation({
     onSuccess: () => {
       utils.case.list.invalidate();
+      addToast({
+        type: 'error',
+        title: 'Deleted',
+        message: `"${caseData.title}" case has been successfully deleted.`,
+      });
       navigate('/cases');
     },
     onError: (error) => {
       console.error('Failed to delete case:', error);
+      addToast({
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to delete case. Please try again.',
+      });
       setIsDeleteDialogOpen(false);
     },
   });
