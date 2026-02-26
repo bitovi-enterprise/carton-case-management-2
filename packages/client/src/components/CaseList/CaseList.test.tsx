@@ -36,12 +36,20 @@ const mockCases = [
   },
 ];
 
+const mockCustomers = [
+  { id: '1', firstName: 'Alice', lastName: 'Smith', email: 'alice@example.com', username: 'alice' },
+  { id: '2', firstName: 'Bob', lastName: 'Jones', email: 'bob@example.com', username: 'bob' },
+];
+
 describe('CaseList', () => {
   it('renders loading state initially', async () => {
     server.use(
       http.get('/trpc/case.list*', async () => {
         await new Promise((resolve) => globalThis.setTimeout(resolve, 100));
         return HttpResponse.json({ result: { data: mockCases } });
+      }),
+      http.get('/trpc/customer.list*', () => {
+        return HttpResponse.json({ result: { data: mockCustomers } });
       })
     );
 
