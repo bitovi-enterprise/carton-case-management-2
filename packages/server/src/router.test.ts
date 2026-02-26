@@ -337,6 +337,7 @@ describe('appRouter', () => {
               id: 'comment-1',
               content: 'Test comment',
               author: { id: 'user-1', firstName: 'User', lastName: 'One', email: 'user1@example.com' },
+              votes: [],
             },
           ],
         };
@@ -363,12 +364,41 @@ describe('appRouter', () => {
                 author: {
                   select: { id: true, firstName: true, lastName: true, email: true },
                 },
+                votes: {
+                  include: {
+                    user: {
+                      select: { id: true, firstName: true, lastName: true },
+                    },
+                  },
+                  orderBy: {
+                    user: {
+                      firstName: 'asc',
+                    },
+                  },
+                },
               },
               orderBy: { createdAt: 'desc' },
             },
           },
         });
-        expect(result).toEqual(mockCase);
+        
+        // Expected result includes transformed comment with vote statistics
+        expect(result).toEqual({
+          ...mockCase,
+          comments: [
+            {
+              id: 'comment-1',
+              content: 'Test comment',
+              author: { id: 'user-1', firstName: 'User', lastName: 'One', email: 'user1@example.com' },
+              votes: undefined,
+              upvoteCount: 0,
+              downvoteCount: 0,
+              upvoters: [],
+              downvoters: [],
+              userVote: null,
+            },
+          ],
+        });
       });
     });
 
