@@ -27,6 +27,8 @@ export function ToastContainer() {
               type={toast.type === 'error' ? 'Error' : 'Neutral'}
               icon={icon}
               showIcon
+              description={toast.message}
+              showLine2={!!toast.message}
               action={
                 <Button
                   variant="ghost"
@@ -40,10 +42,7 @@ export function ToastContainer() {
               showButton
               className="min-w-[400px] shadow-lg"
             >
-              <div className="flex flex-col gap-0.5">
-                <span className="font-semibold">{toast.title}</span>
-                {toast.message && <span className="font-normal text-sm">{toast.message}</span>}
-              </div>
+              {toast.title}
             </Alert>
           </div>
         );
