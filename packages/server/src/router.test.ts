@@ -288,11 +288,11 @@ describe('appRouter', () => {
         mockPrisma.case.findMany.mockResolvedValue([]);
 
         const caller = appRouter.createCaller(mockContext);
-        await caller.case.list({ status: 'TO_DO' });
+        await caller.case.list({ statuses: ['TO_DO'] });
 
         expect(mockPrisma.case.findMany).toHaveBeenCalledWith(
           expect.objectContaining({
-            where: { status: 'TO_DO' },
+            where: { status: { in: ['TO_DO'] } },
           })
         );
       });
@@ -314,11 +314,11 @@ describe('appRouter', () => {
         mockPrisma.case.findMany.mockResolvedValue([]);
 
         const caller = appRouter.createCaller(mockContext);
-        await caller.case.list({ status: 'IN_PROGRESS', assignedTo: 'user-1' });
+        await caller.case.list({ statuses: ['IN_PROGRESS'], assignedTo: 'user-1' });
 
         expect(mockPrisma.case.findMany).toHaveBeenCalledWith(
           expect.objectContaining({
-            where: { status: 'IN_PROGRESS', assignedTo: 'user-1' },
+            where: { status: { in: ['IN_PROGRESS'] }, assignedTo: 'user-1' },
           })
         );
       });
