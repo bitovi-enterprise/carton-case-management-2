@@ -434,12 +434,14 @@ export const appRouter = router({
           },
         });
 
-        // Extract the related cases (not the current case)
-        const relatedCases = relationships.map((rel) =>
-          rel.fromCaseId === input.caseId ? rel.toCase : rel.fromCase
-        );
+        // Extract the related cases (not the current case) and deduplicate
+        const relatedCasesMap = new Map();
+        relationships.forEach((rel) => {
+          const relatedCase = rel.fromCaseId === input.caseId ? rel.toCase : rel.fromCase;
+          relatedCasesMap.set(relatedCase.id, relatedCase);
+        });
 
-        return relatedCases;
+        return Array.from(relatedCasesMap.values());
       }),
 
     getAvailableCasesForRelation: publicProcedure
