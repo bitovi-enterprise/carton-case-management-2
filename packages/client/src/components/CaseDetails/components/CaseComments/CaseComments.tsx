@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Textarea } from '@/components/obra';
+import { ReactionStatistics } from '@/components/common/ReactionStatistics';
 import type { CaseCommentsProps } from './types';
 
 export function CaseComments({ caseData }: CaseCommentsProps) {
@@ -11,6 +12,79 @@ export function CaseComments({ caseData }: CaseCommentsProps) {
   // Fetch first user to use as current user (in production this would come from auth)
   const { data: users } = trpc.user.list.useQuery();
   const currentUser = users?.[0];
+
+  // Vote mutation with optimistic updates
+  const voteMutation = trpc.comment.vote.useMutation({
+    onMutate: async (variables) => {
+      // Cancel outgoing refetches
+      await utils.case.getById.cancel({ id: caseData.id });
+
+      // Snapshot previous value
+      const previousCase = utils.case.getById.getData({ id: caseData.id });
+
+      // Optimistically update the cache
+      if (previousCase && currentUser) {
+        const updatedComments = previousCase.comments?.map((comment) => {
+          if (comment.id !== variables.commentId) return comment;
+
+          const currentVote = comment.userVote || 'none';
+          const newVoteType = variables.voteType;
+          
+          let upvoteCount = comment.upvoteCount || 0;
+          let downvoteCount = comment.downvoteCount || 0;
+          let upvoters = comment.upvoters || [];
+          let downvoters = comment.downvoters || [];
+          const voterName = `${currentUser.firstName} ${currentUser.lastName}`;
+
+          // Remove current user from both lists first
+          upvoters = upvoters.filter((name: string) => name !== voterName);
+          downvoters = downvoters.filter((name: string) => name !== voterName);
+
+          // Adjust counts based on previous vote
+          if (currentVote === 'up') upvoteCount = Math.max(0, upvoteCount - 1);
+          if (currentVote === 'down') downvoteCount = Math.max(0, downvoteCount - 1);
+
+          // Apply new vote
+          if (newVoteType === 'UP') {
+            upvoteCount++;
+            upvoters = [voterName, ...upvoters];
+          } else if (newVoteType === 'DOWN') {
+            downvoteCount++;
+            downvoters = [voterName, ...downvoters];
+          }
+
+          return {
+            ...comment,
+            userVote: (newVoteType === 'UP' ? 'up' : newVoteType === 'DOWN' ? 'down' : 'none') as 'up' | 'down' | 'none',
+            upvoteCount,
+            downvoteCount,
+            upvoters,
+            downvoters,
+          };
+        });
+
+        utils.case.getById.setData(
+          { id: caseData.id },
+          {
+            ...previousCase,
+            comments: updatedComments,
+          }
+        );
+      }
+
+      return { previousCase };
+    },
+    onError: (_err, _variables, context) => {
+      // Rollback on error
+      if (context?.previousCase) {
+        utils.case.getById.setData({ id: caseData.id }, context.previousCase);
+      }
+    },
+    onSettled: () => {
+      // Refetch to sync with server
+      utils.case.getById.invalidate({ id: caseData.id });
+    },
+  });
 
   const createCommentMutation = trpc.comment.create.useMutation({
     onMutate: async (variables) => {
@@ -35,6 +109,11 @@ export function CaseComments({ caseData }: CaseCommentsProps) {
             lastName: currentUser.lastName,
             email: currentUser.email,
           },
+          upvoteCount: 0,
+          downvoteCount: 0,
+          upvoters: [],
+          downvoters: [],
+          userVote: 'none' as const,
         };
 
         utils.case.getById.setData(
@@ -72,6 +151,38 @@ export function CaseComments({ caseData }: CaseCommentsProps) {
       caseId: caseData.id,
       content: newComment.trim(),
     });
+  };
+
+  // Debounced vote handlers
+  const [voteTimers, setVoteTimers] = useState<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  const handleVote = (commentId: string, voteType: 'UP' | 'DOWN') => {
+    // Clear existing timer for this comment
+    if (voteTimers[commentId]) {
+      clearTimeout(voteTimers[commentId]);
+    }
+
+    // Get current vote for this comment
+    const comment = caseData.comments?.find((c) => c.id === commentId);
+    const currentVote = comment?.userVote || 'none';
+
+    // Determine new vote type (toggle off if clicking same button)
+    const newVoteType = currentVote === voteType.toLowerCase() ? undefined : voteType;
+
+    // Set new timer to debounce the mutation
+    const timer = setTimeout(() => {
+      voteMutation.mutate({
+        commentId,
+        voteType: newVoteType,
+      });
+      setVoteTimers((prev) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { [commentId]: _removed, ...rest } = prev;
+        return rest;
+      });
+    }, 300);
+
+    setVoteTimers((prev) => ({ ...prev, [commentId]: timer }));
   };
 
   return (
@@ -115,6 +226,16 @@ export function CaseComments({ caseData }: CaseCommentsProps) {
                 </div>
               </div>
               <p className="text-sm text-gray-700">{comment.content}</p>
+              <ReactionStatistics
+                userVote={comment.userVote || 'none'}
+                upvotes={comment.upvoteCount || 0}
+                upvoters={comment.upvoters || []}
+                downvotes={comment.downvoteCount || 0}
+                downvoters={comment.downvoters || []}
+                isPending={voteMutation.isPending}
+                onUpvote={() => handleVote(comment.id, 'UP')}
+                onDownvote={() => handleVote(comment.id, 'DOWN')}
+              />
             </div>
           ))
         ) : (
