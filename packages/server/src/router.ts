@@ -419,6 +419,7 @@ export const appRouter = router({
                 title: true,
                 status: true,
                 priority: true,
+                createdAt: true,
               },
             },
             toCase: {
@@ -427,6 +428,7 @@ export const appRouter = router({
                 title: true,
                 status: true,
                 priority: true,
+                createdAt: true,
               },
             },
           },
