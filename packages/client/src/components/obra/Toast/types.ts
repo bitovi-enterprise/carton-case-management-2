@@ -1,5 +1,3 @@
-import { ReactNode } from 'react';
-
 export type ToastType = 'success' | 'deleted';
 
 export interface ToastProps {

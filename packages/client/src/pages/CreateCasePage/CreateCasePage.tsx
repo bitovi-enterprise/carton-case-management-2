@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/obra/Select';
-import { type CasePriority, CASE_PRIORITY_OPTIONS } from '@carton/shared/client';
+import { type CasePriority, CASE_PRIORITY_OPTIONS, formatCaseNumber } from '@carton/shared/client';
 import { Label } from '@/components/obra/Label';
 import { useToast } from '@/components/obra/Toast';
 
@@ -46,10 +46,11 @@ export function CreateCasePage() {
       utils.case.list.invalidate();
       
       // Show success toast
+      const caseNumber = formatCaseNumber(data.id, data.createdAt);
       showToast({
         type: 'success',
         title: 'Success! Enjoy your buttery toast!',
-        message: `New case "#${data.caseNumber} - ${data.title}" has been successfully created.`,
+        message: `New case "#${caseNumber} - ${data.title}" has been successfully created.`,
       });
       
       navigate(`/cases/${data.id}`);

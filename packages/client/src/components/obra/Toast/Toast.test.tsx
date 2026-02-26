@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen } from '@testing-library/react';
+import { fireEvent } from '@testing-library/react';
 import { Toast } from './Toast';
 
 describe('Toast', () => {
@@ -9,7 +9,7 @@ describe('Toast', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllTimers();
     vi.useRealTimers();
   });
 
@@ -56,8 +56,7 @@ describe('Toast', () => {
     expect(screen.getByText('1/3')).toBeInTheDocument();
   });
 
-  it('should call onDismiss when dismiss button is clicked', async () => {
-    const user = userEvent.setup({ delay: null });
+  it('should call onDismiss when dismiss button is clicked', () => {
     const onDismiss = vi.fn();
 
     render(
@@ -71,12 +70,12 @@ describe('Toast', () => {
     );
 
     const dismissButton = screen.getByRole('button', { name: /dismiss/i });
-    await user.click(dismissButton);
+    fireEvent.click(dismissButton);
 
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
-  it('should auto-dismiss after duration', async () => {
+  it('should auto-dismiss after duration', () => {
     const onDismiss = vi.fn();
 
     render(
@@ -94,13 +93,10 @@ describe('Toast', () => {
 
     vi.advanceTimersByTime(3000);
 
-    await waitFor(() => {
-      expect(onDismiss).toHaveBeenCalledTimes(1);
-    });
+    expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
-  it('should cancel auto-dismiss timer when manually dismissed', async () => {
-    const user = userEvent.setup({ delay: null });
+  it('should cancel auto-dismiss timer when manually dismissed', () => {
     const onDismiss = vi.fn();
 
     render(
@@ -117,7 +113,7 @@ describe('Toast', () => {
     vi.advanceTimersByTime(2000);
 
     const dismissButton = screen.getByRole('button', { name: /dismiss/i });
-    await user.click(dismissButton);
+    fireEvent.click(dismissButton);
 
     expect(onDismiss).toHaveBeenCalledTimes(1);
 

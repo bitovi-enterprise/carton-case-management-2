@@ -14,7 +14,7 @@ export function Toast({
   duration = 4000,
   className,
 }: ToastProps) {
-  const timerRef = useRef<NodeJS.Timeout>();
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
     // Set up auto-dismiss timer
