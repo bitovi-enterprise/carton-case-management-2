@@ -1,5 +1,6 @@
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { FolderClosed, Users, Bot } from 'lucide-react';
+import { Toaster } from 'sonner';
 import { Header } from './components/Header';
 import { MenuList } from './components/MenuList';
 import { CasePage } from './pages/CasePage';
@@ -48,6 +49,7 @@ function App() {
 
   return (
     <div className="h-screen bg-[#dfe2e2] flex flex-col">
+      <Toaster position="bottom-center" richColors />
       <Header userInitials={userInitials} />
       <MenuList items={menuItems} />
       <div className="flex flex-1 overflow-hidden lg:pl-[68px]">

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { MoreVertical, Trash } from 'lucide-react';
+import { toast } from 'sonner';
 import { trpc } from '@/lib/trpc';
 import { Button } from '@/components/obra/Button';
 import { formatCaseNumber, type CaseStatus, CASE_STATUS_OPTIONS } from '@carton/shared/client';
@@ -57,6 +58,10 @@ export function CaseInformation({ caseId, caseData }: CaseInformationProps) {
   const deleteCase = trpc.case.delete.useMutation({
     onSuccess: () => {
       utils.case.list.invalidate();
+      toast.error('Deleted', {
+        description: `"${caseData.title}" case has been successfully deleted.`,
+        icon: <Trash className="h-5 w-5" />,
+      });
       navigate('/cases');
     },
     onError: (error) => {

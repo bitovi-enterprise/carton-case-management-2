@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import { PartyPopper } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 import { Button } from '@/components/obra/Button';
 import { Input } from '@/components/obra/Input';
@@ -42,6 +44,10 @@ export function CreateCasePage() {
   const createCase = trpc.case.create.useMutation({
     onSuccess: (data) => {
       utils.case.list.invalidate();
+      toast.success('Success!', {
+        description: 'A new claim has been created.',
+        icon: <PartyPopper className="h-5 w-5" />,
+      });
       navigate(`/cases/${data.id}`);
     },
   });
