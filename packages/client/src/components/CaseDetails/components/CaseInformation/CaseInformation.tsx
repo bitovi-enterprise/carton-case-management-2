@@ -14,22 +14,21 @@ import {
 import { MoreOptionsMenu, MenuItem } from '@/components/common/MoreOptionsMenu';
 import { ConfirmationDialog } from '@/components/common/ConfirmationDialog';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '@/contexts/ToastContext';
 import type { CaseInformationProps } from './types';
 
 export function CaseInformation({ caseId, caseData }: CaseInformationProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const navigate = useNavigate();
+  const { showToast } = useToast();
 
   const utils = trpc.useUtils();
   const updateCase = trpc.case.update.useMutation({
     onMutate: async (variables) => {
-      // Cancel any outgoing refetches
       await utils.case.getById.cancel({ id: caseId });
 
-      // Snapshot the previous value
       const previousCase = utils.case.getById.getData({ id: caseId });
 
-      // Optimistically update the cache
       if (previousCase) {
         utils.case.getById.setData(
           { id: caseId },
@@ -47,7 +46,6 @@ export function CaseInformation({ caseId, caseData }: CaseInformationProps) {
     },
     onError: (error, _variables, context) => {
       console.error('Failed to update case:', error);
-      // Roll back to previous value on error
       if (context?.previousCase) {
         utils.case.getById.setData({ id: caseId }, context.previousCase);
       }
@@ -57,10 +55,20 @@ export function CaseInformation({ caseId, caseData }: CaseInformationProps) {
   const deleteCase = trpc.case.delete.useMutation({
     onSuccess: () => {
       utils.case.list.invalidate();
+      showToast({
+        type: 'success',
+        title: 'Deleted',
+        message: `"${caseData.title}" case has been successfully deleted.`,
+      });
       navigate('/cases');
     },
     onError: (error) => {
       console.error('Failed to delete case:', error);
+      showToast({
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to delete case. Please try again.',
+      });
       setIsDeleteDialogOpen(false);
     },
   });
