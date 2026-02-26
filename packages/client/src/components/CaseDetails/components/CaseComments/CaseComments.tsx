@@ -35,6 +35,7 @@ export function CaseComments({ caseData }: CaseCommentsProps) {
             lastName: currentUser.lastName,
             email: currentUser.email,
           },
+          votes: [], // Empty votes array for optimistic comment
         };
 
         utils.case.getById.setData(
