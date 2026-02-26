@@ -399,6 +399,164 @@ export const appRouter = router({
           },
         });
       }),
+    
+    // Related cases procedures
+    getRelatedCases: publicProcedure
+      .input(z.object({ caseId: z.string() }))
+      .query(async ({ ctx, input }) => {
+        // Get all relationships where this case is involved (both directions)
+        const relationships = await ctx.prisma.caseRelationship.findMany({
+          where: {
+            OR: [
+              { fromCaseId: input.caseId },
+              { toCaseId: input.caseId },
+            ],
+          },
+          include: {
+            fromCase: {
+              select: {
+                id: true,
+                title: true,
+                status: true,
+                priority: true,
+                createdAt: true,
+              },
+            },
+            toCase: {
+              select: {
+                id: true,
+                title: true,
+                status: true,
+                priority: true,
+                createdAt: true,
+              },
+            },
+          },
+        });
+
+        // Extract the related cases (not the current case) and deduplicate
+        const relatedCasesMap = new Map();
+        relationships.forEach((rel) => {
+          const relatedCase = rel.fromCaseId === input.caseId ? rel.toCase : rel.fromCase;
+          relatedCasesMap.set(relatedCase.id, relatedCase);
+        });
+
+        return Array.from(relatedCasesMap.values());
+      }),
+
+    getAvailableCasesForRelation: publicProcedure
+      .input(z.object({ caseId: z.string() }))
+      .query(async ({ ctx, input }) => {
+        // Get the current case to filter by same customer
+        const currentCase = await ctx.prisma.case.findUnique({
+          where: { id: input.caseId },
+          select: { customerId: true },
+        });
+
+        if (!currentCase) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Case not found',
+          });
+        }
+
+        // Get already related case IDs
+        const relationships = await ctx.prisma.caseRelationship.findMany({
+          where: {
+            OR: [
+              { fromCaseId: input.caseId },
+              { toCaseId: input.caseId },
+            ],
+          },
+          select: {
+            fromCaseId: true,
+            toCaseId: true,
+          },
+        });
+
+        const relatedCaseIds = new Set(
+          relationships.flatMap((rel) => [rel.fromCaseId, rel.toCaseId])
+        );
+        relatedCaseIds.add(input.caseId); // Also exclude the current case
+
+        // Get available cases (same customer, not already related, not self)
+        return ctx.prisma.case.findMany({
+          where: {
+            customerId: currentCase.customerId,
+            id: {
+              notIn: Array.from(relatedCaseIds),
+            },
+          },
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            priority: true,
+            createdAt: true,
+          },
+          orderBy: [
+            { createdAt: 'desc' },
+          ],
+        });
+      }),
+
+    addRelatedCases: publicProcedure
+      .input(
+        z.object({
+          caseId: z.string(),
+          relatedCaseIds: z.array(z.string()),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        // Create bidirectional relationships for each selected case
+        const relationshipsToCreate = input.relatedCaseIds.flatMap((relatedId) => [
+          {
+            fromCaseId: input.caseId,
+            toCaseId: relatedId,
+          },
+          {
+            fromCaseId: relatedId,
+            toCaseId: input.caseId,
+          },
+        ]);
+
+        // Use transaction to create all relationships atomically
+        await ctx.prisma.$transaction(
+          relationshipsToCreate.map((data) =>
+            ctx.prisma.caseRelationship.create({ data })
+          )
+        );
+
+        return { success: true, count: input.relatedCaseIds.length };
+      }),
+
+    removeRelatedCase: publicProcedure
+      .input(
+        z.object({
+          caseId: z.string(),
+          relatedCaseId: z.string(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        // Delete both directions of the relationship
+        await ctx.prisma.$transaction([
+          ctx.prisma.caseRelationship.deleteMany({
+            where: {
+              fromCaseId: input.caseId,
+              toCaseId: input.relatedCaseId,
+            },
+          }),
+          ctx.prisma.caseRelationship.deleteMany({
+            where: {
+              fromCaseId: input.relatedCaseId,
+              toCaseId: input.caseId,
+            },
+          }),
+        ]);
+
+        return { success: true };
+      }),
+
     delete: publicProcedure.input(z.object({ id: z.string() })).mutation(async ({ ctx, input }) => {
       return ctx.prisma.case.delete({
         where: { id: input.id },
