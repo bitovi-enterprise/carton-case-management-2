@@ -235,15 +235,50 @@ export const appRouter = router({
       .input(
         z
           .object({
-            status: caseStatusSchema.optional(),
+            customerIds: z.array(z.string()).optional(),
+            statuses: z.array(caseStatusSchema).optional(),
+            priorities: z.array(casePrioritySchema).optional(),
+            lastUpdated: z.enum(['all', 'today', 'last7days', 'last30days']).optional(),
             assignedTo: z.string().optional(),
           })
           .optional()
       )
       .query(async ({ ctx, input }) => {
+        // Build date filter for lastUpdated
+        let updatedAtFilter;
+        if (input?.lastUpdated && input.lastUpdated !== 'all') {
+          const now = new Date();
+          let startDate: Date;
+          
+          switch (input.lastUpdated) {
+            case 'today':
+              startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+              break;
+            case 'last7days':
+              startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+              break;
+            case 'last30days':
+              startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+              break;
+            default:
+              startDate = new Date(0);
+          }
+          
+          updatedAtFilter = { gte: startDate };
+        }
+
         return ctx.prisma.case.findMany({
           where: {
-            ...(input?.status ? { status: input.status } : {}),
+            ...(input?.customerIds && input.customerIds.length > 0
+              ? { customerId: { in: input.customerIds } }
+              : {}),
+            ...(input?.statuses && input.statuses.length > 0
+              ? { status: { in: input.statuses } }
+              : {}),
+            ...(input?.priorities && input.priorities.length > 0
+              ? { priority: { in: input.priorities } }
+              : {}),
+            ...(updatedAtFilter ? { updatedAt: updatedAtFilter } : {}),
             ...(input?.assignedTo ? { assignedTo: input.assignedTo } : {}),
           },
           include: {
