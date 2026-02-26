@@ -295,11 +295,44 @@ async function main() {
   });
 
 
+  // Create case relationships (related cases)
+  // Case 1 (Insurance Claim Dispute) is related to Case 2 (Policy Coverage Inquiry) and Case 4 (Vehicle Accident Report)
+  await prisma.caseRelationship.create({
+    data: {
+      caseId: case1.id,
+      relatedId: case2.id,
+    },
+  });
+
+  await prisma.caseRelationship.create({
+    data: {
+      caseId: case1.id,
+      relatedId: case4.id,
+    },
+  });
+
+  // Case 2 (Policy Coverage Inquiry) is related to Case 3 (Premium Adjustment Request)
+  await prisma.caseRelationship.create({
+    data: {
+      caseId: case2.id,
+      relatedId: case3.id,
+    },
+  });
+
+  // Case 4 (Vehicle Accident Report) is related to Case 5 (Billing Discrepancy)
+  await prisma.caseRelationship.create({
+    data: {
+      caseId: case4.id,
+      relatedId: case5.id,
+    },
+  });
+
   console.log('Seeding completed!');
   console.log(`Created ${await prisma.user.count()} users`);
   console.log(`Created ${await prisma.customer.count()} customers`);
   console.log(`Created ${await prisma.case.count()} cases`);
   console.log(`Created ${await prisma.comment.count()} comments`);
+  console.log(`Created ${await prisma.caseRelationship.count()} case relationships`);
 }
 
 main()

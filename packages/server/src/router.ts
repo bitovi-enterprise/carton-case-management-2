@@ -399,6 +399,102 @@ export const appRouter = router({
           },
         });
       }),
+    getRelatedCases: publicProcedure.input(z.object({ caseId: z.string() })).query(async ({ ctx, input }) => {
+      // Get all related cases for a given case (bidirectional)
+      const relationships = await ctx.prisma.caseRelationship.findMany({
+        where: {
+          OR: [
+            { caseId: input.caseId },
+            { relatedId: input.caseId },
+          ],
+        },
+        include: {
+          case: {
+            select: {
+              id: true,
+              title: true,
+              status: true,
+              priority: true,
+              createdAt: true,
+            },
+          },
+          related: {
+            select: {
+              id: true,
+              title: true,
+              status: true,
+              priority: true,
+              createdAt: true,
+            },
+          },
+        },
+      });
+
+      // Extract the related cases (excluding the current case)
+      const relatedCases = relationships.map((rel) => {
+        return rel.caseId === input.caseId ? rel.related : rel.case;
+      });
+
+      return relatedCases;
+    }),
+    getAvailableCases: publicProcedure.input(z.object({ caseId: z.string() })).query(async ({ ctx, input }) => {
+      // Get already related case IDs
+      const relationships = await ctx.prisma.caseRelationship.findMany({
+        where: {
+          OR: [
+            { caseId: input.caseId },
+            { relatedId: input.caseId },
+          ],
+        },
+        select: {
+          caseId: true,
+          relatedId: true,
+        },
+      });
+
+      const relatedCaseIds = relationships.map((rel) => 
+        rel.caseId === input.caseId ? rel.relatedId : rel.caseId
+      );
+
+      // Get all cases excluding current case and already related cases
+      return ctx.prisma.case.findMany({
+        where: {
+          id: {
+            notIn: [input.caseId, ...relatedCaseIds],
+          },
+        },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          priority: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+    }),
+    addRelatedCases: publicProcedure
+      .input(
+        z.object({
+          caseId: z.string(),
+          relatedCaseIds: z.array(z.string()).min(1),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        // Create relationships for all selected cases
+        const relationships = input.relatedCaseIds.map((relatedId) => ({
+          caseId: input.caseId,
+          relatedId,
+        }));
+
+        await ctx.prisma.caseRelationship.createMany({
+          data: relationships,
+        });
+
+        return { success: true, count: relationships.length };
+      }),
     delete: publicProcedure.input(z.object({ id: z.string() })).mutation(async ({ ctx, input }) => {
       return ctx.prisma.case.delete({
         where: { id: input.id },
