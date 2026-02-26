@@ -5,6 +5,7 @@ async function main() {
   console.log('Clearing existing data...');
 
   // Delete all existing data in correct order (respecting foreign keys)
+  await prisma.vote.deleteMany();
   await prisma.comment.deleteMany();
   await prisma.case.deleteMany();
   await prisma.customer.deleteMany();
@@ -161,7 +162,7 @@ async function main() {
     },
   });
 
-  await prisma.comment.create({
+  const case1Comment2 = await prisma.comment.create({
     data: {
       content:
         'Following up on the housing assistance application. Will contact the Housing First program coordinator.',
@@ -294,12 +295,49 @@ async function main() {
     },
   });
 
+  // Create demo votes for comments
+  console.log('Creating votes...');
+  
+  // Case 1 Comment 2 has multiple upvotes and downvotes
+  await prisma.vote.create({
+    data: {
+      commentId: case1Comment2.id,
+      userId: alexMorgan.id,
+      voteType: 'UP',
+    },
+  });
+
+  await prisma.vote.create({
+    data: {
+      commentId: case1Comment2.id,
+      userId: sarahJohnson.id,
+      voteType: 'UP',
+    },
+  });
+
+  await prisma.vote.create({
+    data: {
+      commentId: case1Comment2.id,
+      userId: aliceSmith.id,
+      voteType: 'UP',
+    },
+  });
+
+  await prisma.vote.create({
+    data: {
+      commentId: case1Comment2.id,
+      userId: bobWilliams.id,
+      voteType: 'DOWN',
+    },
+  });
+
 
   console.log('Seeding completed!');
   console.log(`Created ${await prisma.user.count()} users`);
   console.log(`Created ${await prisma.customer.count()} customers`);
   console.log(`Created ${await prisma.case.count()} cases`);
   console.log(`Created ${await prisma.comment.count()} comments`);
+  console.log(`Created ${await prisma.vote.count()} votes`);
 }
 
 main()

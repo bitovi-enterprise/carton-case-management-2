@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { router, publicProcedure } from './trpc.js';
-import { formatDate, casePrioritySchema, caseStatusSchema } from '@carton/shared';
+import { formatDate, casePrioritySchema, caseStatusSchema, VoteTypeSchema } from '@carton/shared';
 import { TRPCError } from '@trpc/server';
 
 export const appRouter = router({
@@ -277,7 +277,7 @@ export const appRouter = router({
         });
       }),
     getById: publicProcedure.input(z.object({ id: z.string() })).query(async ({ ctx, input }) => {
-      return ctx.prisma.case.findUnique({
+      const caseData = await ctx.prisma.case.findUnique({
         where: { id: input.id },
         include: {
           customer: {
@@ -313,6 +313,17 @@ export const appRouter = router({
                   email: true,
                 },
               },
+              votes: {
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      firstName: true,
+                      lastName: true,
+                    },
+                  },
+                },
+              },
             },
             orderBy: {
               createdAt: 'desc',
@@ -320,6 +331,34 @@ export const appRouter = router({
           },
         },
       });
+
+      if (!caseData) {
+        return null;
+      }
+
+      // Transform comments to include vote statistics
+      const commentsWithVotes = caseData.comments.map((comment) => {
+        const upvotes = comment.votes.filter((v) => v.voteType === 'UP');
+        const downvotes = comment.votes.filter((v) => v.voteType === 'DOWN');
+        const userVote = ctx.userId
+          ? comment.votes.find((v) => v.userId === ctx.userId)
+          : undefined;
+
+        return {
+          ...comment,
+          upvoteCount: upvotes.length,
+          downvoteCount: downvotes.length,
+          upvoters: upvotes.map((v) => `${v.user.firstName} ${v.user.lastName}`),
+          downvoters: downvotes.map((v) => `${v.user.firstName} ${v.user.lastName}`),
+          userVote: userVote ? (userVote.voteType === 'UP' ? 'up' as const : 'down' as const) : ('none' as const),
+          votes: undefined, // Remove raw votes from response
+        };
+      });
+
+      return {
+        ...caseData,
+        comments: commentsWithVotes,
+      };
     }),
     create: publicProcedure
       .input(
@@ -439,6 +478,83 @@ export const appRouter = router({
             },
           },
         });
+      }),
+    vote: publicProcedure
+      .input(
+        z.object({
+          commentId: z.string(),
+          voteType: VoteTypeSchema.optional(), // undefined means remove vote
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (!ctx.userId) {
+          throw new TRPCError({
+            code: 'UNAUTHORIZED',
+            message: 'Not authenticated',
+          });
+        }
+
+        const { commentId, voteType } = input;
+
+        // If voteType is undefined, remove the vote
+        if (!voteType) {
+          await ctx.prisma.vote.deleteMany({
+            where: {
+              commentId,
+              userId: ctx.userId,
+            },
+          });
+          return { success: true, action: 'removed' };
+        }
+
+        // Check if user already voted
+        const existingVote = await ctx.prisma.vote.findUnique({
+          where: {
+            commentId_userId: {
+              commentId,
+              userId: ctx.userId,
+            },
+          },
+        });
+
+        if (existingVote) {
+          // If same vote type, remove it (toggle off)
+          if (existingVote.voteType === voteType) {
+            await ctx.prisma.vote.delete({
+              where: {
+                commentId_userId: {
+                  commentId,
+                  userId: ctx.userId,
+                },
+              },
+            });
+            return { success: true, action: 'removed' };
+          }
+
+          // Otherwise, update to new vote type
+          await ctx.prisma.vote.update({
+            where: {
+              commentId_userId: {
+                commentId,
+                userId: ctx.userId,
+              },
+            },
+            data: {
+              voteType,
+            },
+          });
+          return { success: true, action: 'updated' };
+        }
+
+        // Create new vote
+        await ctx.prisma.vote.create({
+          data: {
+            commentId,
+            userId: ctx.userId,
+            voteType,
+          },
+        });
+        return { success: true, action: 'created' };
       }),
   }),
 });
