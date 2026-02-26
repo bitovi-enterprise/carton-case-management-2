@@ -1,79 +1,42 @@
+import { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { trpc } from '@/lib/trpc';
 import { Skeleton } from '@/components/obra/Skeleton';
 import { Button } from '@/components/obra/Button';
+import { FiltersTrigger } from '@/components/common/FiltersTrigger';
+import { FiltersDialog } from '@/components/common/FiltersDialog';
 import { formatCaseNumber } from '@carton/shared/client';
+import { useCaseFilters } from './hooks/useCaseFilters';
 import type { CaseListProps, CaseListItem } from './types';
 
 export function CaseList({ onCaseClick }: CaseListProps) {
   const { id: activeId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { data: cases, isLoading, error, refetch } = trpc.case.list.useQuery();
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  
+  const {
+    appliedFilters,
+    filterItems,
+    activeFilterCount,
+    applyFilters,
+    clearFilters,
+    resetDraftFilters,
+  } = useCaseFilters();
+  
+  const { data: cases, isLoading, error, refetch } = trpc.case.list.useQuery(appliedFilters);
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col w-full lg:w-[200px]">
-        <Button
-          onClick={() => navigate('/cases/new')}
-          variant="secondary"
-          className="w-full mb-2"
-        >
-          Create Case
-        </Button>
-        <div className="flex flex-col gap-2">
-          {[...Array(5)].map((_, index) => (
-            <div key={index} className="flex items-center justify-between px-4 py-2 rounded-lg">
-              <div className="flex flex-col gap-2 w-full">
-                <Skeleton className="h-5 w-3/4" />
-                <Skeleton className="h-5 w-1/2" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const handleApplyFilters = () => {
+    applyFilters();
+    setFiltersOpen(false);
+  };
 
-  if (error) {
-    return (
-      <div className="flex flex-col w-full lg:w-[200px] p-4">
-        <Button
-          onClick={() => navigate('/cases/new')}
-          variant="secondary"
-          className="w-full mb-2"
-        >
-          Create Case
-        </Button>
-        <div className="text-center">
-          <p className="text-red-600 font-semibold mb-2">Error loading cases</p>
-          <p className="text-sm text-gray-600 mb-4">{error.message}</p>
-          <Button onClick={() => refetch()} size="small">
-            Retry
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  const handleCloseFilters = () => {
+    resetDraftFilters();
+    setFiltersOpen(false);
+  };
 
-  if (!cases || cases.length === 0) {
-    return (
-      <div className="flex flex-col w-full lg:w-[200px] p-4">
-        <Button
-          onClick={() => navigate('/cases/new')}
-          variant="secondary"
-          className="w-full mb-2"
-        >
-          Create Case
-        </Button>
-        <div className="text-center text-gray-500">
-          <p className="text-sm">No cases found</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col w-full lg:w-[200px]">
+  const renderHeader = () => (
+    <>
       <Button
         onClick={() => navigate('/cases/new')}
         variant="secondary"
@@ -81,8 +44,105 @@ export function CaseList({ onCaseClick }: CaseListProps) {
       >
         Create Case
       </Button>
-      <div className="flex flex-col gap-2">
-        {cases?.map((caseItem: CaseListItem) => {
+      
+      <FiltersTrigger
+        activeCount={activeFilterCount}
+        selected={filtersOpen}
+        onClick={() => setFiltersOpen(true)}
+        className="mb-2"
+      />
+    </>
+  );
+
+  if (isLoading) {
+    return (
+      <>
+        <div className="flex flex-col w-full lg:w-[200px]">
+          {renderHeader()}
+          <div className="flex flex-col gap-2">
+            {[...Array(5)].map((_, index) => (
+              <div key={index} className="flex items-center justify-between px-4 py-2 rounded-lg">
+                <div className="flex flex-col gap-2 w-full">
+                  <Skeleton className="h-5 w-3/4" />
+                  <Skeleton className="h-5 w-1/2" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <FiltersDialog
+          open={filtersOpen}
+          onOpenChange={handleCloseFilters}
+          filters={filterItems}
+          title="Filters"
+          onApply={handleApplyFilters}
+          onClear={clearFilters}
+        />
+      </>
+    );
+  }
+
+  if (error) {
+    return (
+      <>
+        <div className="flex flex-col w-full lg:w-[200px] p-4">
+          {renderHeader()}
+          <div className="text-center">
+            <p className="text-red-600 font-semibold mb-2">Error loading cases</p>
+            <p className="text-sm text-gray-600 mb-4">{error.message}</p>
+            <Button onClick={() => refetch()} size="small">
+              Retry
+            </Button>
+          </div>
+        </div>
+        <FiltersDialog
+          open={filtersOpen}
+          onOpenChange={handleCloseFilters}
+          filters={filterItems}
+          title="Filters"
+          onApply={handleApplyFilters}
+          onClear={clearFilters}
+        />
+      </>
+    );
+  }
+
+  if (!cases || cases.length === 0) {
+    const hasActiveFilters = activeFilterCount > 0;
+    return (
+      <>
+        <div className="flex flex-col w-full lg:w-[200px] p-4">
+          {renderHeader()}
+          <div className="text-center text-gray-500">
+            {hasActiveFilters ? (
+              <>
+                <p className="text-sm font-semibold mb-2">No cases match your filters</p>
+                <p className="text-xs mb-2">Try adjusting your filter criteria</p>
+              </>
+            ) : (
+              <p className="text-sm">No cases found</p>
+            )}
+          </div>
+        </div>
+        <FiltersDialog
+          open={filtersOpen}
+          onOpenChange={handleCloseFilters}
+          filters={filterItems}
+          title="Filters"
+          onApply={handleApplyFilters}
+          onClear={clearFilters}
+        />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div className="flex flex-col w-full lg:w-[200px]">
+        {renderHeader()}
+        
+        <div className="flex flex-col gap-2">
+          {cases?.map((caseItem: CaseListItem) => {
           const isActive = caseItem.id === activeId;
           return (
             <Link
@@ -102,7 +162,17 @@ export function CaseList({ onCaseClick }: CaseListProps) {
             </Link>
           );
         })}
+        </div>
       </div>
-    </div>
+      
+      <FiltersDialog
+        open={filtersOpen}
+        onOpenChange={handleCloseFilters}
+        filters={filterItems}
+        title="Filters"
+        onApply={handleApplyFilters}
+        onClear={clearFilters}
+      />
+    </>
   );
 }
